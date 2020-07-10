@@ -1,6 +1,18 @@
 tls-cc-tools (formally tls-cc-validator)
 ======================
 
+How to use:
+1. Add OpenSSL1.0.1 to your Test-System
+2. Create dhparams.pem file in dir /tls-cc-tool/
+$  openssl dhparam -out dhparams.pem 4096
+$  openssl dhparam -out dhparams.pem 2048
+3. Edit the Makefile in the dir /tls-cc-tool/
+4. Include the install Path of your OpenSSL1.0.1
+5. Important: I am unsure if FCS_TLSC_EXT_1_1_TEST_1 works! 
+6. Uncomment or recomment the Tests you need in Tests.c.
+
+
+
 ## About This Project
 This project is intended to demonstrate how one might use OpenSSL (or similarly to constructed TLS engine) to test a TLS client for conformance to
 the TLS requirements as laid out by NIAP's Application Software Protection Profile(https://www.niap-ccevs.org/pp/PP_APP_v1.1/) as part of the Common Criteria framework.
