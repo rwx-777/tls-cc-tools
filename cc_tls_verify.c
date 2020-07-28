@@ -12,6 +12,7 @@
 #include "tests.h"
 #include "cert_gen.h"
 
+
 #define CIPHER_SUITES_COUNT     20
 #define CIPHER_SUITES_CRITICAL  1
 #define WEAK_CIPHER_COUNT       8
@@ -30,7 +31,7 @@
 
 
 #ifdef RUN_FCS_TLSC_EXT_1_1_TESTS
-
+/*
 #define RUN_FCS_TLSC_EXT_1_1_TEST_1
 #define RUN_FCS_TLSC_EXT_1_1_TEST_2
 #define RUN_FCS_TLSC_EXT_1_1_TEST_3
@@ -39,8 +40,10 @@
 #define RUN_FCS_TLSC_EXT_1_1_TEST_5__2
 #define RUN_FCS_TLSC_EXT_1_1_TEST_5__3
 #define RUN_FCS_TLSC_EXT_1_1_TEST_5__4
-#define RUN_FCS_TLSC_EXT_1_1_TEST_5__5
 #define RUN_FCS_TLSC_EXT_1_1_TEST_5__6
+*/
+#define RUN_FCS_TLSC_EXT_1_1_TEST_5__5
+
 
 #endif
 
@@ -324,7 +327,6 @@ void do_FCS_TLSC_EXT_1_1_tests(int ssock, X509* rsa_root_cert, EVP_PKEY* rsa_roo
     ec_info accepted_ec[EC_CURVE_COUNT];
     
     
-    
     initialize_cipher_suites(cipher_suites, accepted_ec);
     initialize_weak_cipher_suites(weak_ciphers);
     
@@ -375,7 +377,7 @@ void do_FCS_TLSC_EXT_1_1_tests(int ssock, X509* rsa_root_cert, EVP_PKEY* rsa_roo
     write_lower_level();
     
     //ssl_ctx = init_ssl_server_ctx(TLSv1_2_method(), "cert.pem", "privkey.pem", "dhparams.pem", "secp384r1", "ecdsa_cert.pem", "ecdsa_privkey.pem", 0);
-    ssl_ctx = init_ssl_server_ctx(TLSv1_2_method(), rsa_cert, rsa_priv_key, dh_param_file, TEST_EC_CURVE, ecdsa_cert, ecdsa_priv_key, rsa_root_cert);
+    ssl_ctx = init_ssl_server_ctx(TLS_method(), rsa_cert, rsa_priv_key, dh_param_file, TEST_EC_CURVE, ecdsa_cert, ecdsa_priv_key, rsa_root_cert);
     
     if (!ssl_ctx)
     {
@@ -808,9 +810,10 @@ int main(int argc, char** argv)
         
         fclose(f);
     }
-    
+	printf("Do TESTS....");   
+ 
     do_FCS_TLSC_EXT_1_1_tests(ssock, rsa_cert, rsa_priv_key, bits, TEST_EC_CURVE, COUNTRY, ORG_NAME, ORG_UNIT, COMMON_NAME, ALT_NAME);
-    do_FCS_TLSC_EXT_1_2_tests(ssock, rsa_cert, rsa_priv_key, bits, TEST_EC_CURVE, COUNTRY, ORG_NAME, ORG_UNIT, COMMON_NAME, ALT_NAME, 3);
+   do_FCS_TLSC_EXT_1_2_tests(ssock, rsa_cert, rsa_priv_key, bits, TEST_EC_CURVE, COUNTRY, ORG_NAME, ORG_UNIT, COMMON_NAME, ALT_NAME, 3);
     do_FCS_TLSC_EXT_1_3_tests(ssock, rsa_cert, rsa_priv_key, bits, TEST_EC_CURVE, COUNTRY, ORG_NAME, ORG_UNIT, COMMON_NAME, ALT_NAME);
     do_FCS_TLSC_EXT_1_4_tests(ssock, rsa_cert, rsa_priv_key, bits, TEST_EC_CURVE, COUNTRY, ORG_NAME, ORG_UNIT, COMMON_NAME, ALT_NAME);
     do_FCS_TLSC_EXT_1_5_tests(ssock, rsa_cert, rsa_priv_key, bits, BAD_EC_CURVE, COUNTRY, ORG_NAME, ORG_UNIT, COMMON_NAME, ALT_NAME);
@@ -818,7 +821,9 @@ int main(int argc, char** argv)
     
     do_FIA_X509_EXT_1_1_tests(ssock, rsa_cert, rsa_priv_key, bits, TEST_EC_CURVE, COUNTRY, ORG_NAME, ORG_UNIT, COMMON_NAME, ALT_NAME);
     do_FIA_X509_EXT_1_2_tests(ssock, rsa_cert, rsa_priv_key, bits, TEST_EC_CURVE, COUNTRY, ORG_NAME, ORG_UNIT, COMMON_NAME, ALT_NAME);
-    
+
+	
+ 
     close(ssock);
     
     return 0;

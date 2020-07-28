@@ -4,9 +4,15 @@
 #include <openssl/err.h>
 //#include <openssl/x509_vfy.h>
 #include <sys/socket.h>
+#include <sys/select.h>
+#include <string.h>
 
 #include "printer.h"
 #include "common.h"
+
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
 
 void print_ssl_error_stack(int level)
 {
@@ -224,7 +230,7 @@ error_die:
     return 0;
 }
 
-int SSL_CTX_build_cert_chain(SSL_CTX* ssl_ctx, X509** certs, int count)
+int Custom_SSL_CTX_build_cert_chain(SSL_CTX* ssl_ctx, X509** certs, int count)
 {
     int i;
 
@@ -437,6 +443,7 @@ void shutdown_ssl(SSL* ssl, int sockfd, BIO* rbio, BIO* wbio)
                     write_out(PRINT_ERROR, "TLS error: %d", SSL_get_error(ssl, err));
                     print_ssl_error_stack(PRINT_ERROR);
                     write_lower_level();
+		    goto for_break;
             }
         }
         else if (err == 1)

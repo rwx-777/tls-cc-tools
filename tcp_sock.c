@@ -21,6 +21,14 @@
 
 #define MAXPORTLEN (6)
 
+#ifdef SO_NOSIGPIPE
+#define OSX_SO_NOSIGPIPE
+#else
+#ifndef MSG_NOSIGNAL
+#error "Cannot block SIGPIPE!"
+#endif
+#endif
+
 int create_server_sock(const char* interface, const char* port, int backlog, int family, int reuse)
 {
     struct addrinfo hints;
@@ -63,6 +71,10 @@ int create_server_sock(const char* interface, const char* port, int backlog, int
         if (reuse)
             if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1)
                 write_out(PRINT_WARNING, "Unable to set SO_REUSEADDR on socket: %s", strerror(errno));
+#ifdef OSX_SO_NOSIGPIPE
+	if (setsockopt(sockfd, SOL_SOCKET, SO_NOSIGPIPE, &yes, sizeof(int)) == -1)
+		write_out(PRINT_WARNING, "Unable to set SO_NOSIGPIPE on socket: %s", strerror(errno));
+#endif
         
         if (bind(sockfd, walker->ai_addr, walker->ai_addrlen) == -1)
         {

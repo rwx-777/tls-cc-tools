@@ -10,6 +10,10 @@
 #define HANDSHAKE_SUCCESSFUL    1
 #define HANDSHAKE_BAD_DIGEST    2 //successful except bad final digest
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#define TLS_method TLSv1_2_method
+#endif
+
 typedef unsigned char* (*MUTATOR)(void*, unsigned char*, int, int*);
 
 void init_ssl();
@@ -18,7 +22,7 @@ SSL* init_ssl_with_cipher(SSL_CTX* ssl_ctx, const char* cipher_name);
 
 SSL_CTX* init_ssl_server_ctx(const SSL_METHOD* method, X509* server_cert, EVP_PKEY* server_priv_key, const char* dh_params, const char* ecdh_curve, X509* ecdsa_cert, EVP_PKEY* ecdsa_privkey, X509* root_cert);
 
-int SSL_CTX_build_cert_chain(SSL_CTX* ssl_ctx, X509** certs, int count);
+int Custom_SSL_CTX_build_cert_chain(SSL_CTX* ssl_ctx, X509** certs, int count);
 
 void print_ssl_error_stack(int level);
 

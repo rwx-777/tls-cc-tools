@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "cert_gen.h"
 
 #include <openssl/pem.h>
@@ -166,7 +168,7 @@ int create_rsa_cert_v3_ex(int bits, const char* country, const char* org_name, c
     if (!cert)
         goto error_die;
     
-    rsa = RSA_generate_key(bits, RSA_F4, 0, 0);
+/*    rsa = RSA_generate_key(bits, RSA_F4, 0, 0); */
     
     if (!(rsa = RSA_new()))
     {

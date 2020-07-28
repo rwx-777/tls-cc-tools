@@ -42,10 +42,23 @@ int get_rsa_mod(X509* cert, unsigned char* buf, unsigned int size)
     int algid;
     EVP_PKEY* pub_key = 0;
     RSA* rsa_key = 0;
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L /* OpenSSL 1.1.x */
+    const BIGNUM *n, *e;
+#endif
     //int key_len;
     int ret;
+#if OPENSSL_VERSION_NUMBER >= 0x10002000L /* OpenSSL 1.0.2 */
+    ASN1_OBJECT *ppkalg;
+    X509_PUBKEY *pk;
+#endif
     
+#if OPENSSL_VERSION_NUMBER >= 0x10002000L
+    pk = X509_get_X509_PUBKEY(cert);
+    X509_PUBKEY_get0_param(&ppkalg, NULL, NULL, NULL, pk);
+    algid = OBJ_obj2nid(ppkalg);
+#else
     algid = OBJ_obj2nid(cert->cert_info->key->algor->algorithm);
+#endif
     
     if (algid != NID_rsaEncryption)
     {
@@ -65,13 +78,23 @@ int get_rsa_mod(X509* cert, unsigned char* buf, unsigned int size)
         goto error_die;
     }
     
+#if OPENSSL_VERSION_NUMBER >= 0x10002000L
+    if (size < RSA_size(rsa_key))
+#else
     if (size < BN_num_bytes(rsa_key->n))
+#endif
     {
         ret = 0;
         goto error_die;
     }
     
+#if OPENSSL_VERSION_NUMBER < 0x10100000L /* OpenSSL 1.0.2 */
     ret = BN_bn2bin(rsa_key->n, buf);
+#else /* 1.1.x */
+    RSA_get0_key(rsa_key, &n, &e, NULL);
+    ret = BN_bn2bin(n, buf);
+#endif
+
     if (ret > size)
     {
         write_out(PRINT_ERROR, "Buffer overflow when extracting RSA modulus!");
@@ -153,7 +176,8 @@ int do_tls_connection(int ssock, SSL* ssl, MUTATOR in_mut, void* in_state, MUTAT
         write_out(PRINT_INFO, "Unable to accept remote connection!");
         return 0;
     }
-    
+
+	printf("doing tls connection\n");    
     bio_ssl_read = BIO_new(BIO_s_mem());
     bio_ssl_write = BIO_new(BIO_s_mem());
     
@@ -193,7 +217,7 @@ int do_tls_connection(int ssock, SSL* ssl, MUTATOR in_mut, void* in_state, MUTAT
     
     shutdown_ssl(ssl, rsock, bio_ssl_read, bio_ssl_write);
     close(rsock);
-    
+    printf("Finished doing tls connection\n");
     return ret;
 }
 
@@ -513,8 +537,13 @@ unsigned char* mod_client_cert_request(void* state, unsigned char* data, int len
                         for (total = 2; total < length;)
                         {
                             //find our fake cert
-                            string = get_distinguished_string(ptr_to_rdn);
-                            
+                            if ((string =
+				get_distinguished_string(ptr_to_rdn)) == 0) {
+				    write_out(PRINT_ERROR, "Unable to get distinguished string");
+				    break;
+			    }
+
+
                             if (strcmp(FAKE_CA, string) == 0)
                                 good_name = 1;
                             else if (strcmp(FAKE_ORG, string) == 0)
@@ -733,7 +762,9 @@ unsigned char* mod_server_fin(void* state, unsigned char* data, int len, int* ou
         else if ((record->record_type == TLS_RECORD_HANDSHAKE) && (hstate->has_changed_cipher_spec))
         {   //this is the TLS Finished message according to the spec
             finished_data = ((unsigned char*)(record + 1)) + 6; //skip past the handshake type, length, and version fields
-            
+           
+            //finished_data = ((unsigned char*)(record + 1)); //skip past the handshake type, length, and version fields
+ 
             write_out(PRINT_INFO, "Changing 6th byte in finished message from 0x%02x to 0x%02x.", (unsigned int)*finished_data, (unsigned int)(*finished_data + 1));
             *finished_data += 1;
         }
@@ -1023,7 +1054,7 @@ int FCS_TLSC_EXT_1_1_TEST_1_test_connections(int ssock, SSL_CTX* ssl_ctx, cipher
         if (!(ssl = init_ssl_with_cipher(ssl_ctx, cipher_list[i].openssl_name)))
         {
             if (i < req_count)
-                ret = 0;
+		ret = 0;
         }
         else
             if (!do_tls_connection(ssock, ssl, 0, 0, 0, 0, 1, 0))
@@ -1032,7 +1063,6 @@ int FCS_TLSC_EXT_1_1_TEST_1_test_connections(int ssock, SSL_CTX* ssl_ctx, cipher
                     ret = 0;
                 SSL_free(ssl);
             }
-        
         write_lower_level();
     }
     
@@ -1042,12 +1072,11 @@ int FCS_TLSC_EXT_1_1_TEST_1_test_connections(int ssock, SSL_CTX* ssl_ctx, cipher
 int FCS_TLSC_EXT_1_1_TEST_1(int ssock, SSL_CTX* ssl_ctx, cipher_suite_info* cipher_list, int cipher_count, int req_count, ec_info* ec_list, int ec_count)
 {
     write_raise_level();
-    
+ 
     if (!FCS_TLSC_EXT_1_1_TEST_1_test_connections(ssock, ssl_ctx, cipher_list, cipher_count, req_count))
     {
         write_out(PRINT_OUTPUT, "Failed to establish required TLS connection using a required crypto suite.");
         write_lower_level();
-        
         return 0;
     }
     
@@ -1363,7 +1392,7 @@ int build_test_cert_chains_output(SSL_CTX** out_ssl_ctx, X509** out_cert, EVP_PK
     }
 
     //make the ssl context with 
-    ssl_ctx = init_ssl_server_ctx(TLSv1_2_method(), cert_stack[depth - 1], pk_stack[depth - 1], 0, 0, 0, 0, root_cert);
+    ssl_ctx = init_ssl_server_ctx(TLS_method(), cert_stack[depth - 1], pk_stack[depth - 1], 0, 0, 0, 0, root_cert);
     if (!ssl_ctx)
     {
         write_out(PRINT_ERROR, "Error creating SSL context.");
@@ -1443,7 +1472,7 @@ int build_test_cert_chains_ex(SSL_CTX** out_ssl_ctx, X509** out_cert, EVP_PKEY**
     }
 
     //make the ssl context with 
-    ssl_ctx = init_ssl_server_ctx(TLSv1_2_method(), cert_stack[depth - 1], pk_stack[depth - 1], 0, 0, 0, 0, root_cert);
+    ssl_ctx = init_ssl_server_ctx(TLS_method(), cert_stack[depth - 1], pk_stack[depth - 1], 0, 0, 0, 0, root_cert);
     if (!ssl_ctx)
     {
         write_out(PRINT_ERROR, "Error creating SSL context.");
@@ -1454,7 +1483,7 @@ int build_test_cert_chains_ex(SSL_CTX** out_ssl_ctx, X509** out_cert, EVP_PKEY**
     
     //add the rest of our certificate chain
     //this will cause SSL_CTX to take ownership of everything in cert_stack
-    if (!SSL_CTX_build_cert_chain(ssl_ctx, cert_stack, depth - 1))
+    if (!Custom_SSL_CTX_build_cert_chain(ssl_ctx, cert_stack, depth - 1))
     {
         ret = 0;
         goto error_die;
@@ -1547,7 +1576,7 @@ int FCS_TLSC_EXT_1_2_TEST_1(int ssock, const char* cipher_name, int depth, X509*
     
     write_lower_level();
     
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
@@ -1592,7 +1621,7 @@ int FCS_TLSC_EXT_1_2_TEST_2(int ssock, const char* cipher_name, int depth, X509*
     
     write_lower_level();
     
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
@@ -1629,7 +1658,7 @@ int FCS_TLSC_EXT_1_2_TEST_3(int ssock, const char* cipher_name, int depth, X509*
     
     write_lower_level();
     
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
@@ -1673,7 +1702,7 @@ int FCS_TLSC_EXT_1_2_TEST_4(int ssock, const char* cipher_name, int depth, X509*
 
     write_lower_level();
     
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
@@ -1713,7 +1742,7 @@ int FCS_TLSC_EXT_1_2_TEST_5__1(int ssock, const char* cipher_name, int depth, X5
     
     write_lower_level();
     
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
@@ -1753,7 +1782,7 @@ int FCS_TLSC_EXT_1_2_TEST_5__2a(int ssock, const char* cipher_name, int depth, X
     
     write_lower_level();
     
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
@@ -1793,7 +1822,7 @@ int FCS_TLSC_EXT_1_2_TEST_5__2b(int ssock, const char* cipher_name, int depth, X
     
     write_lower_level();
     
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
@@ -1833,7 +1862,7 @@ int FCS_TLSC_EXT_1_2_TEST_5__3(int ssock, const char* cipher_name, int depth, X5
     
     write_lower_level();
     
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
@@ -1870,7 +1899,7 @@ int FCS_TLSC_EXT_1_3_TEST_1a(int ssock, const char* cipher_name, X509* root_cert
     
     write_lower_level();
     
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
@@ -1907,7 +1936,7 @@ int FCS_TLSC_EXT_1_3_TEST_1b(int ssock, const char* cipher_name, X509* root_cert
     
     write_lower_level();
     
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
@@ -1979,7 +2008,7 @@ error_die:
     
     if (ssl)
         SSL_free(ssl);
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
@@ -2034,7 +2063,7 @@ int FCS_TLSC_EXT_1_5_TEST_1(int ssock, const char* cipher_name, X509* root_cert,
     }
     write_lower_level();
     
-    ssl_ctx = init_ssl_server_ctx(TLSv1_2_method(), 0, 0, 0, ec_curve, ecdsa_cert, ecdsa_priv_key, root_cert);
+    ssl_ctx = init_ssl_server_ctx(TLS_method(), 0, 0, 0, ec_curve, ecdsa_cert, ecdsa_priv_key, root_cert);
     
     if (!ssl_ctx)
     {
@@ -2104,7 +2133,7 @@ int FCS_TLSC_EXT_1_6_TEST_1(int ssock, const char* cipher_name, X509* root_cert,
     }
     write_lower_level();
     
-    ssl_ctx = init_ssl_server_ctx(TLSv1_2_method(), rsa_cert, rsa_priv_key, 0, 0, 0, 0, root_cert);
+    ssl_ctx = init_ssl_server_ctx(TLS_method(), rsa_cert, rsa_priv_key, 0, 0, 0, 0, root_cert);
     
     if (!ssl_ctx)
     {
@@ -2177,7 +2206,7 @@ error_die:
     
     if (ssl)
         SSL_free(ssl);
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
@@ -2213,7 +2242,7 @@ int FIA_X509_EXT_1_1_TEST_2(int ssock, const char* cipher_name, X509* root_cert,
         goto error_die;
     }
     
-    ssl_ctx = init_ssl_server_ctx(TLSv1_2_method(), cert, pk, 0, 0, 0, 0, root_cert);
+    ssl_ctx = init_ssl_server_ctx(TLS_method(), cert, pk, 0, 0, 0, 0, root_cert);
     if (!ssl_ctx)
     {
         write_out(PRINT_ERROR, "Error creating SSL context.");
@@ -2235,7 +2264,7 @@ error_die:
     
     if (ssl)
         SSL_free(ssl);
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
@@ -2263,7 +2292,7 @@ int FIA_X509_EXT_1_1_TEST_5(int ssock, const char* cipher_name, X509* root_cert,
         goto error_die;
     }
     
-    ssl_ctx = init_ssl_server_ctx(TLSv1_2_method(), cert, pk, 0, 0, 0, 0, root_cert);
+    ssl_ctx = init_ssl_server_ctx(TLS_method(), cert, pk, 0, 0, 0, 0, root_cert);
     if (!ssl_ctx)
     {
         write_out(PRINT_ERROR, "Error creating SSL context.");
@@ -2289,7 +2318,7 @@ error_die:
     
     if (ssl)
         SSL_free(ssl);
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
@@ -2317,7 +2346,7 @@ int FIA_X509_EXT_1_1_TEST_6(int ssock, const char* cipher_name, X509* root_cert,
         goto error_die;
     }
     
-    ssl_ctx = init_ssl_server_ctx(TLSv1_2_method(), cert, pk, 0, 0, 0, 0, root_cert);
+    ssl_ctx = init_ssl_server_ctx(TLS_method(), cert, pk, 0, 0, 0, 0, root_cert);
     if (!ssl_ctx)
     {
         write_out(PRINT_ERROR, "Error creating SSL context.");
@@ -2343,7 +2372,7 @@ error_die:
     
     if (ssl)
         SSL_free(ssl);
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
@@ -2373,7 +2402,7 @@ int FIA_X509_EXT_1_1_TEST_7(int ssock, const char* cipher_name, X509* root_cert,
         goto error_die;
     }
     
-    ssl_ctx = init_ssl_server_ctx(TLSv1_2_method(), cert, pk, 0, 0, 0, 0, root_cert);
+    ssl_ctx = init_ssl_server_ctx(TLS_method(), cert, pk, 0, 0, 0, 0, root_cert);
     if (!ssl_ctx)
     {
         write_out(PRINT_ERROR, "Error creating SSL context.");
@@ -2417,7 +2446,7 @@ error_die:
         free(modulus);
     if (ssl)
         SSL_free(ssl);
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
@@ -2462,7 +2491,7 @@ error_die:
     
     if (ssl)
         SSL_free(ssl);
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
@@ -2507,7 +2536,7 @@ error_die:
     
     if (ssl)
         SSL_free(ssl);
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
@@ -2552,7 +2581,7 @@ error_die:
     
     if (ssl)
         SSL_free(ssl);
-    if (ssl_ctx);
+    if (ssl_ctx)
         SSL_CTX_free(ssl_ctx);
     if (cert)
         X509_free(cert);
