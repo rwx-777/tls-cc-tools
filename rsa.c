@@ -7,7 +7,9 @@
 #endif
 
 
-int make_root_ca()
+int
+make_root_ca()
 {
-    return -1;
+
+	return (-1);
 }

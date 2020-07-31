@@ -11,12 +11,6 @@ $  openssl dhparam -out dhparams.pem 2048
 5. Important: I am unsure if FCS_TLSC_EXT_1_1_TEST_1 works! 
 6. Uncomment or recomment the Tests you need in Tests.c.
 
-# Whats new & what did we change
-- made it compatible with OpenSSL 1.0.1, 1.0.2 and 1.1.x
-- fixed a bug that caused it to loop when TLS shutdown resulted in an error
-- logic bugs in if() statements
-- remove test/debug printfs
-
 
 
 ## About This Project
