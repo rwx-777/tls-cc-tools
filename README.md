@@ -11,6 +11,15 @@ $  openssl dhparam -out dhparams.pem 2048
 5. Important: I am unsure if FCS_TLSC_EXT_1_1_TEST_1 works! 
 6. Uncomment or recomment the Tests you need in Tests.c.
 
+# What we changed
+- Fixed FCS_TLSC_EXT.1.1 Test 4 to really test with the NULL symmetric cipher
+- C Style updates to make code more readable
+- abort loop if get_distinguished_string() fails
+- for OpenSSL 1.1.x: don't use deprecated interfaces
+- Makefile: only specify -I and -L when needed (macOS)
+- made it compatible with OpenSSL 1.0.1, 1.0.2 and 1.1.x
+- fixed a bug that caused it to loop when TLS shutdown resulted in an error
+- logic bugs in if() statements
 
 
 ## About This Project
